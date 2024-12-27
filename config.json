@@ -1,0 +1,38 @@
+{
+    "exp": {
+        "project_name": "dl_bhw_1",
+        "device": "cuda",
+        "seed": 42,
+        "use_wandb": false
+    },
+    "data": {
+        "dataset": "given",
+        "dataset_dir": "C:\\STUDY\\bhw1",
+        "train_batch_size": 64,
+        "val_batch_size": 64,
+        "val_size": 0.1,
+        "workers": 8
+    },
+    "train": {
+        "classifier": "v_0_0",
+        "classifier_args": {
+            "img_size": 40,
+            "num_blocks": 3,
+            "num_classes": 200
+        },
+        "optimizer": "adam",
+        "optimizer_args": {
+            "lr": 0.001
+        },
+        "checkpoint_path": null,
+        "val_metrics": [
+            "accuracy"
+        ],
+        "epochs": 5,
+        "checkpoint_epoch": 5,
+        "checkpoints_dir": "C:\\STUDY\\bhw_dl_classifier\\checkpoints"
+    },
+    "losses": {
+        "CrossEntropyLoss": 1.0
+    }
+}
