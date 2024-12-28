@@ -19,11 +19,10 @@ if __name__ == "__main__":
     config = read_json_file('config.json')
     setup_seed(config['exp']['seed'])
 
-    if config['exp']['use_wandb']:
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--run_name", type=str, required=True)
-        args = parser.parse_args()
-        config['exp']['run_name'] = args.run_name
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run_name", type=str, required=True)
+    args = parser.parse_args()
+    config['exp']['run_name'] = args.run_name
 
     trainer = Trainer(config)
 

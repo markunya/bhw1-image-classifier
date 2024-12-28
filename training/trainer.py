@@ -8,6 +8,8 @@ from models.models import classifiers_registry
 from datasets.datasets import datasets_registry
 from metrics.metrics import metrics_registry
 from training.optimizers import optimizers_registry
+from training.schedulers import schedulers_registry
+from datasets.augmentations import augmentations_registry
 from training.losses import LossBuilder
 from utils.data_utils import csv_to_list
 from utils.data_utils import split_mapping
@@ -47,6 +49,10 @@ class Trainer:
             self.classifier.parameters(), **self.config['train']['optimizer_args']
         )
 
+        self.scheduler = schedulers_registry[self.config['train']['scheduler']](
+            self.optimizer, **self.config['train']['scheduler_args']
+        )
+
         if self.config['train']['checkpoint_path']:
             checkpoint = torch.load(self.config['train']['checkpoint_path'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state'])
@@ -73,22 +79,19 @@ class Trainer:
         mapping = csv_to_list(os.path.join(self.config['data']['dataset_dir'], 'labels.csv'), key_column='Id', value_column='Category')
         train_mapping, val_mapping = split_mapping(mapping, self.config['data']['val_size'], self.config['exp']['seed'])
 
+        ts = [augmentations_registry[name]() for name in self.config['augmentations']]
+        ts += [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+
         self.train_dataset = datasets_registry[self.config['data']['dataset']](
             root = self.config['data']['dataset_dir'],
             mapping = train_mapping,
-            transforms = transforms.Compose([
-                            transforms.ToTensor(),
-                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                        ])
-            )
+            transforms = transforms.Compose(ts)
+        )
 
         self.val_dataset = datasets_registry[self.config['data']['dataset']](
             root = self.config['data']['dataset_dir'],
             mapping = val_mapping,
-            transforms = transforms.Compose([
-                            transforms.ToTensor(),
-                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-                        ])
+            transforms = transforms.Compose(ts)
         )
     
     def setup_train_dataloader(self):
@@ -129,16 +132,15 @@ class Trainer:
                     for loss_name in epoch_losses.keys():
                         epoch_losses[loss_name].append(losses_dict[loss_name])
                     pbar.set_postfix({"loss": losses_dict['total_loss'].item()})
-            
+        
             self.logger.log_train_losses(self.epoch)
-
+            self.setup_train_dataloader()
             val_metrics_dict = self.validate()
+            self.scheduler.step(val_metrics_dict['val_' + self.config['train']['scheduler_metric']])
             self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
 
             if self.epoch % checkpoint_epoch == 0:
                 self.save_checkpoint()
-
-            self.setup_train_dataloader()
 
     def train_step(self, batch):
         self.optimizer.zero_grad()
@@ -158,26 +160,37 @@ class Trainer:
             'classifier_state': self.classifier.state_dict(),
             'optimizer_state': self.optimizer.state_dict(),
         }
-        torch.save(checkpoint, os.path.join(self.config['train']['checkpoints_dir'], f'checkpoint_{self.epoch}.pth'))
+        run_name = self.config['exp']['run_name']
+        torch.save(checkpoint, os.path.join(self.config['train']['checkpoints_dir'],
+                                            f'checkpoint_{run_name}_{self.epoch}.pth'))
 
     @torch.no_grad()
     def validate(self):
         self.to_eval()
         metrics_dict = {}
+
         for metric_name, _ in self.metrics:
-            metrics_dict[metric_name] = 0
+            metrics_dict['train_' + metric_name] = 0
+            metrics_dict['val_' + metric_name] = 0
 
-        for batch in self.val_dataloader:
-            for metric_name, metric in self.metrics:
-                images = batch['images'].to(self.device)    
-                labels = batch['labels'].to(self.device)
+        l = min(len(self.val_dataloader), len(self.train_dataloader))
+        for train_batch, val_batch in zip(self.train_dataloader, self.val_dataloader):
+                train_images = train_batch['images'].to(self.device)
+                val_images = val_batch['images'].to(self.device)
+                train_labels = train_batch['labels'].to(self.device)
+                val_labels = val_batch['labels'].to(self.device)
 
-                pred_logits = self.classifier(images)
-                metrics_dict[metric_name] += metric(pred_logits, labels) / len(self.val_dataloader)
+                train_pred_logits = self.classifier(train_images)
+                val_pred_logits = self.classifier(val_images)
+
+                for metric_name, metric in self.metrics:
+                    metrics_dict['train_' + metric_name] += metric(train_pred_logits, train_labels) / l
+                    metrics_dict['val_' + metric_name] += metric(val_pred_logits, val_labels) / l
         
-        print('Validation metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
-        
+        print('Metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
         self.setup_val_dataloader()
+        self.setup_train_dataloader()
+
         return metrics_dict
 
     @torch.no_grad()

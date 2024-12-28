@@ -11,27 +11,42 @@
         "train_batch_size": 64,
         "val_batch_size": 64,
         "val_size": 0.1,
-        "workers": 8
+        "workers": 6
     },
     "train": {
         "classifier": "v_0_0",
         "classifier_args": {
             "img_size": 40,
-            "num_blocks": 3,
-            "num_classes": 200
+            "num_blocks": 4,
+            "num_classes": 200,
+            "start_channels": 16,
+            "start_kernel": 7,
+            "resblock_kernels": [3, 1]
         },
         "optimizer": "adam",
         "optimizer_args": {
             "lr": 0.001
         },
+        "scheduler": "reduce_on_plateau",
+        "scheduler_metric": "accuracy",
+        "scheduler_args": {
+            "mode" : "max",
+            "factor": 0.1,
+            "threshold": 0.01
+        },
         "checkpoint_path": null,
         "val_metrics": [
             "accuracy"
         ],
-        "epochs": 5,
-        "checkpoint_epoch": 5,
+        "epochs": 20,
+        "checkpoint_epoch": 10,
         "checkpoints_dir": "C:\\STUDY\\bhw_dl_classifier\\checkpoints"
     },
+    "augmentations": [
+        "rotation",
+        "horizontal_flip",
+        "rotation"
+    ],
     "losses": {
         "CrossEntropyLoss": 1.0
     }

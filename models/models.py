@@ -6,15 +6,18 @@ from utils.model_utils import weights_init
 classifiers_registry = ClassRegistry()
 
 class ResnetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, kernels=None):
         super().__init__()
+        if kernels is None:
+            kernels = [3,1]
         self.block = nn.Sequential(
             nn.ReLU(),
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(in_channels, out_channels, kernel_size=3),
+            nn.ReflectionPad2d(kernels[0] // 2),
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernels[0]),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=1),
+            nn.ReflectionPad2d(kernels[1] // 2),
+            nn.Conv2d(out_channels, out_channels, kernel_size=kernels[1]),
             nn.BatchNorm2d(out_channels),
         )
         self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1)
@@ -24,22 +27,22 @@ class ResnetBlock(nn.Module):
 
 @classifiers_registry.add_to_registry(name='v_0_0')
 class Classifier_V_0_0(nn.Module):
-    def __init__(self, img_size, num_blocks, num_classes):
+    def __init__(self, img_size, num_blocks, num_classes,
+                start_channels, start_kernel, resblock_kernels):
         super().__init__()
-        assert img_size % (2**num_blocks) == 0, "Image size must be divisible by 2^num_blocks"
 
         blocks = [
             nn.Sequential(
-                nn.ReflectionPad2d(1),
-                nn.Conv2d(3, 4, kernel_size=3),
-                ResnetBlock(4, 4)
+                nn.ReflectionPad2d(start_kernel // 2),
+                nn.Conv2d(3, start_channels, kernel_size=start_kernel),
+                ResnetBlock(start_channels, start_channels, resblock_kernels),
             )
         ]
-        current_channels = 4
+        current_channels = start_channels
         for _ in range(num_blocks):
             blocks += [
                 nn.MaxPool2d(kernel_size=2),
-                ResnetBlock(current_channels, current_channels * 2)
+                ResnetBlock(current_channels, current_channels * 2, resblock_kernels),
             ]
             current_channels *= 2
 
