@@ -4,3 +4,6 @@ checkpoints
 
 */__pycache__/
 *.pyc
+
+labels_test.csv
+augs_visualization.ipynb

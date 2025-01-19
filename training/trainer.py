@@ -1,7 +1,6 @@
 import os
 import torch
-
-from torchvision import transforms
+import pandas as pd
 from torch.utils.data import DataLoader
 from training.loggers import TrainingLogger
 from models.models import classifiers_registry
@@ -14,6 +13,7 @@ from training.losses import LossBuilder
 from utils.data_utils import csv_to_list
 from utils.data_utils import split_mapping
 from tqdm import tqdm
+from time import time
 
 class Trainer:
     def __init__(self, config):
@@ -27,21 +27,18 @@ class Trainer:
         self.setup_losses()
         self.setup_metrics()
         self.setup_logger()
-        self.setup_datasets()
+        self.setup_trainval_datasets()
         self.setup_dataloaders()
 
     def setup_inference(self):
         self.setup_classifier()
-        self.setup_metrics()
-        self.setup_logger()
-        self.setup_datasets()
-        self.setup_dataloaders()
+        self.setup_test_data()
 
     def setup_classifier(self):
         self.classifier = classifiers_registry[self.config['train']['classifier']](**self.config['train']['classifier_args']).to(self.device)
 
-        if self.config['train']['checkpoint_path']:
-            checkpoint = torch.load(self.config['train']['checkpoint_path'])
+        if self.config['checkpoint_path']:
+            checkpoint = torch.load(self.config['checkpoint_path'])
             self.classifier.load_state_dict(checkpoint['classifier_state'])
 
     def setup_optimizers(self):
@@ -53,8 +50,8 @@ class Trainer:
             self.optimizer, **self.config['train']['scheduler_args']
         )
 
-        if self.config['train']['checkpoint_path']:
-            checkpoint = torch.load(self.config['train']['checkpoint_path'])
+        if self.config['checkpoint_path']:
+            checkpoint = torch.load(self.config['checkpoint_path'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state'])
 
     def setup_losses(self):
@@ -75,23 +72,27 @@ class Trainer:
     def setup_logger(self):
         self.logger = TrainingLogger(self.config)
 
-    def setup_datasets(self):
+    def setup_trainval_datasets(self):
         mapping = csv_to_list(os.path.join(self.config['data']['dataset_dir'], 'labels.csv'), key_column='Id', value_column='Category')
-        train_mapping, val_mapping = split_mapping(mapping, self.config['data']['val_size'], self.config['exp']['seed'])
+        if self.config['data']['val_size'] > 0:
+            train_mapping, val_mapping = split_mapping(mapping, self.config['data']['val_size'], self.config['exp']['seed'])
+        else:
+            train_mapping = mapping
+            val_mapping = []
 
-        ts = [augmentations_registry[name]() for name in self.config['augmentations']]
-        ts += [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        self.train_dataset = datasets_registry[self.config['data']['trainval_dataset']](self.config, train_mapping)
+        self.val_dataset = datasets_registry[self.config['data']['trainval_dataset']](self.config, val_mapping)
+        self.val_dataset.no_augs()
 
-        self.train_dataset = datasets_registry[self.config['data']['dataset']](
-            root = self.config['data']['dataset_dir'],
-            mapping = train_mapping,
-            transforms = transforms.Compose(ts)
-        )
-
-        self.val_dataset = datasets_registry[self.config['data']['dataset']](
-            root = self.config['data']['dataset_dir'],
-            mapping = val_mapping,
-            transforms = transforms.Compose(ts)
+    def setup_test_data(self):
+        self.test_dataset = datasets_registry[self.config['data']['test_dataset']](self.config)
+        
+        self.test_dataloader = DataLoader(
+            self.test_dataset,
+            batch_size=self.config['inference']['test_batch_size'],
+            multiprocessing_context="spawn" if self.config['data']['workers'] > 0 else None,
+            num_workers=self.config['data']['workers'],
+            pin_memory=True,
         )
     
     def setup_train_dataloader(self):
@@ -124,19 +125,32 @@ class Trainer:
         checkpoint_epoch = self.config['train']['checkpoint_epoch']
 
         for self.epoch in range(1, num_epochs + 1):
+            running_loss = 0
             epoch_losses = {key: [] for key in self.loss_builder.losses.keys()}
+            
+            current_lr = self.optimizer.param_groups[0]['lr']
+            print(f"Learning Rate at epoch {self.epoch}: {current_lr:.6f}")
+
             with tqdm(self.train_dataloader, desc=f"Training Epoch {self.epoch}\{num_epochs}", unit="batch") as pbar:
                 for batch in pbar:
                     losses_dict = self.train_step(batch)
+                    
                     self.logger.update_losses(losses_dict)
                     for loss_name in epoch_losses.keys():
                         epoch_losses[loss_name].append(losses_dict[loss_name])
-                    pbar.set_postfix({"loss": losses_dict['total_loss'].item()})
-        
+                    
+                    running_loss = running_loss * 0.9 + losses_dict['total_loss'].item() * 0.1
+                    pbar.set_postfix({"loss": running_loss})
+
             self.logger.log_train_losses(self.epoch)
             self.setup_train_dataloader()
             val_metrics_dict = self.validate()
-            self.scheduler.step(val_metrics_dict['val_' + self.config['train']['scheduler_metric']])
+
+            if self.config['train']['scheduler'] == 'reduce_on_plateau':
+                self.scheduler.step(val_metrics_dict['val_' + self.config['train']['scheduler_metric']])
+            else:
+                self.scheduler.step()
+
             self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
 
             if self.epoch % checkpoint_epoch == 0:
@@ -166,6 +180,9 @@ class Trainer:
 
     @torch.no_grad()
     def validate(self):
+        if len(self.val_dataset) == 0:
+            return
+        
         self.to_eval()
         metrics_dict = {}
 
@@ -173,30 +190,50 @@ class Trainer:
             metrics_dict['train_' + metric_name] = 0
             metrics_dict['val_' + metric_name] = 0
 
-        l = min(len(self.val_dataloader), len(self.train_dataloader))
-        for train_batch, val_batch in zip(self.train_dataloader, self.val_dataloader):
-                train_images = train_batch['images'].to(self.device)
-                val_images = val_batch['images'].to(self.device)
-                train_labels = train_batch['labels'].to(self.device)
-                val_labels = val_batch['labels'].to(self.device)
+        train_iter = iter(self.train_dataloader)
+        val_iter = iter(self.val_dataloader)
 
-                train_pred_logits = self.classifier(train_images)
-                val_pred_logits = self.classifier(val_images)
+        num_batches = min(len(self.train_dataloader), len(self.val_dataloader))
 
-                for metric_name, metric in self.metrics:
-                    metrics_dict['train_' + metric_name] += metric(train_pred_logits, train_labels) / l
-                    metrics_dict['val_' + metric_name] += metric(val_pred_logits, val_labels) / l
-        
+        for _ in range(num_batches):
+            train_batch = next(train_iter)
+            val_batch = next(val_iter)
+
+            train_images = train_batch['images'].to(self.device)
+            val_images = val_batch['images'].to(self.device)
+            train_labels = train_batch['labels'].to(self.device)
+            val_labels = val_batch['labels'].to(self.device)
+
+            train_pred_logits = self.classifier(train_images)
+            val_pred_logits = self.classifier(val_images)
+
+            for metric_name, metric in self.metrics:
+                metrics_dict['train_' + metric_name] += metric(train_pred_logits, train_labels) / num_batches
+                metrics_dict['val_' + metric_name] += metric(val_pred_logits, val_labels) / num_batches
+
         print('Metrics: ', ", ".join(f"{key}={value}" for key, value in metrics_dict.items()))
         self.setup_val_dataloader()
         self.setup_train_dataloader()
 
         return metrics_dict
 
+
+
     @torch.no_grad()
     def inference(self):
         self.to_eval()
-        for batch in self.val_dataloader:
+
+        results = []
+
+        for batch in self.test_dataloader:
             images = batch['images'].to(self.device)
+            filenames = batch['filenames']
             pred_logits = self.classifier(images)
-            print(pred_logits)
+            predicted_labels = pred_logits.argmax(dim=-1).cpu().tolist()
+
+            results.extend(zip(filenames, predicted_labels))
+
+        df = pd.DataFrame(results, columns=["Id", "Category"])
+
+        output_file = "labels_test.csv"
+        df.to_csv(output_file, index=False)

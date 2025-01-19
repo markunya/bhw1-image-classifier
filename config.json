@@ -3,50 +3,46 @@
         "project_name": "dl_bhw_1",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": false
+        "use_wandb": true
     },
     "data": {
-        "dataset": "given",
-        "dataset_dir": "C:\\STUDY\\bhw1",
+        "trainval_dataset": "simple_trainval_dataset",
+        "test_dataset": "simple_test_dataset",
+        "dataset_dir": "..\\bhw1",
         "train_batch_size": 64,
         "val_batch_size": 64,
         "val_size": 0.1,
-        "workers": 6
+        "workers": 4
+    },
+    "checkpoint_path": null,
+    "inference": {
+        "output_dir": ".\\",
+        "test_batch_size": 64
     },
     "train": {
-        "classifier": "v_0_0",
+        "classifier": "resnet",
         "classifier_args": {
-            "img_size": 40,
-            "num_blocks": 4,
-            "num_classes": 200,
-            "start_channels": 16,
-            "start_kernel": 7,
-            "resblock_kernels": [3, 1]
+            "num_blocks": [1, 1, 1]
         },
-        "optimizer": "adam",
+        "optimizer": "adamW",
         "optimizer_args": {
-            "lr": 0.001
+            "lr": 0.0001
         },
-        "scheduler": "reduce_on_plateau",
+        "scheduler": "multi_step",
         "scheduler_metric": "accuracy",
         "scheduler_args": {
-            "mode" : "max",
-            "factor": 0.1,
-            "threshold": 0.01
+            "milestones": [6],
+            "gamma": 0.1
         },
-        "checkpoint_path": null,
         "val_metrics": [
             "accuracy"
         ],
-        "epochs": 20,
-        "checkpoint_epoch": 10,
-        "checkpoints_dir": "C:\\STUDY\\bhw_dl_classifier\\checkpoints"
+        "epochs": 8,
+        "checkpoint_epoch": 8,
+        "checkpoints_dir": ".\\checkpoints"
     },
-    "augmentations": [
-        "rotation",
-        "horizontal_flip",
-        "rotation"
-    ],
+    "augmentations": {
+    },
     "losses": {
         "CrossEntropyLoss": 1.0
     }
