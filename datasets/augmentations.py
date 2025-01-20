@@ -25,7 +25,7 @@ class Hue(transforms.ColorJitter):
 
 @augmentations_registry.add_to_registry(name='perspective')
 class Perspective(transforms.RandomPerspective):
-    def __init__(self, distortion_scale=0.2, p=0.5, fill=(0.485, 0.456, 0.406)):
+    def __init__(self, distortion_scale=0.15, p=0.5, fill=(0.485, 0.456, 0.406)):
         super().__init__(distortion_scale=distortion_scale, p=p, fill=fill)
 
 @augmentations_registry.add_to_registry(name='crop')
@@ -66,7 +66,7 @@ class CutMix(v2.CutMix):
         super().__init__(alpha=alpha, num_classes=num_classes, labels_getter=labels_getter)
 
 @mixes_registry.add_to_registry(name='mixup')
-class Mix(v2.MixUp):
+class MixUp(v2.MixUp):
     def __init__(self, num_classes=200, labels_getter=lambda x: x['labels']):
         super().__init__(num_classes=num_classes, labels_getter=labels_getter)
 
