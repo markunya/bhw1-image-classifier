@@ -51,8 +51,8 @@ class FullSymmetry(nn.Module):
 
 @mixes_registry.add_to_registry(name='cutmix')    
 class CutMix(v2.CutMix):
-    def __init__(self, num_classes=200, labels_getter=lambda x: x['labels']):
-        super().__init__(num_classes=num_classes, labels_getter=labels_getter)
+    def __init__(self, alpha=2.0, num_classes=200, labels_getter=lambda x: x['labels']):
+        super().__init__(alpha=alpha, num_classes=num_classes, labels_getter=labels_getter)
 
 @mixes_registry.add_to_registry(name='mixup')
 class Mix(v2.MixUp):
