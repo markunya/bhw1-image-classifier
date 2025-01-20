@@ -22,7 +22,8 @@
     "train": {
         "classifier": "resnet",
         "classifier_args": {
-            "num_blocks": [1, 1, 1]
+            "num_blocks": [2, 2, 2, 2],
+            "start_channels": 128
         },
         "optimizer": "adamW",
         "optimizer_args": {
@@ -31,74 +32,21 @@
         "scheduler": "multi_step",
         "scheduler_metric": "accuracy",
         "scheduler_args": {
-            "milestones": [8],
+            "milestones": [30, 35],
             "gamma": 0.1
         },
         "val_metrics": [
             "accuracy"
         ],
-        "epochs": 10,
-        "checkpoint_epoch": 10,
+        "epochs": 40,
+        "checkpoint_epoch": 20,
         "checkpoints_dir": "./checkpoints"
     },
     "augmentations": {
         "horizontal_flip": null,
-        "bcs": null,
-        "hue": [
-            128,
-            129,
-            4,
-            5,
-            135,
-            136,
-            137,
-            10,
-            138,
-            140,
-            13,
-            19,
-            147,
-            21,
-            150,
-            151,
-            25,
-            27,
-            155,
-            156,
-            158,
-            31,
-            160,
-            36,
-            165,
-            39,
-            172,
-            46,
-            182,
-            57,
-            187,
-            61,
-            191,
-            193,
-            66,
-            67,
-            194,
-            69,
-            70,
-            75,
-            78,
-            83,
-            88,
-            90,
-            101,
-            105,
-            106,
-            109,
-            115,
-            119,
-            122,
-            123
-        ]
+        "bcs": null
     },
+    "mixes": ["cutmix"],
     "losses": {
         "CrossEntropyLoss": 1.0
     }
