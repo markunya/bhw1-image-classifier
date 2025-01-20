@@ -54,7 +54,12 @@ class CutMix(v2.CutMix):
     def __init__(self, num_classes=200, labels_getter=lambda x: x['labels']):
         super().__init__(num_classes=num_classes, labels_getter=labels_getter)
 
-@mixes_registry.add_to_registry(name='')
+@mixes_registry.add_to_registry(name='mixup')
 class Mix(v2.MixUp):
     def __init__(self, num_classes=200, labels_getter=lambda x: x['labels']):
         super().__init__(num_classes=num_classes, labels_getter=labels_getter)
+
+@mixes_registry.add_to_registry(name='nomix')
+class NoMix(nn.Module):
+    def forward(self, batch):
+        return batch
