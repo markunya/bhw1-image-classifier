@@ -1,10 +1,12 @@
 from torchvision import transforms
+from torchvision.transforms import v2
 from torch import nn
 from utils.class_registry import ClassRegistry
 import random
 import torchvision.transforms.functional as F
 
 augmentations_registry = ClassRegistry()
+mixes_registry = ClassRegistry()
 
 @augmentations_registry.add_to_registry(name='horizontal_flip')
 class HorizontalFlip(transforms.RandomHorizontalFlip):
@@ -46,4 +48,8 @@ class FullSymmetry(nn.Module):
 
     def forward(self, img):
         return self.transform(img)
-        
+
+@mixes_registry.add_to_registry(name='cutmix')    
+class CutMix(v2.CutMix):
+    def __init__(self, num_classes=200, labels_getter=lambda x: x['labels']):
+        super().__init__(num_classes=num_classes, labels_getter=labels_getter)

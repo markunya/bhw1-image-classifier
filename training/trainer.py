@@ -1,6 +1,7 @@
 import os
 import torch
 import pandas as pd
+from torchvision import transforms
 from torch.utils.data import DataLoader
 from training.loggers import TrainingLogger
 from models.models import classifiers_registry
@@ -8,7 +9,7 @@ from datasets.datasets import datasets_registry
 from metrics.metrics import metrics_registry
 from training.optimizers import optimizers_registry
 from training.schedulers import schedulers_registry
-from datasets.augmentations import augmentations_registry
+from datasets.augmentations import mixes_registry
 from training.losses import LossBuilder
 from utils.data_utils import csv_to_list
 from utils.data_utils import split_mapping
@@ -131,8 +132,14 @@ class Trainer:
             current_lr = self.optimizer.param_groups[0]['lr']
             print(f"Learning Rate at epoch {self.epoch}: {current_lr:.6f}")
 
+            mixes = []
+            for mix in self.config['mixes']:
+                mixes.append(mixes_registry[mix]())
+
             with tqdm(self.train_dataloader, desc=f"Training Epoch {self.epoch}\{num_epochs}", unit="batch") as pbar:
                 for batch in pbar:
+                    batch = transforms.RandomChoice(mixes)(batch)
+                    
                     losses_dict = self.train_step(batch)
                     
                     self.logger.update_losses(losses_dict)
