@@ -28,6 +28,17 @@ class Perspective(transforms.RandomPerspective):
     def __init__(self, distortion_scale=0.2, p=0.5, fill=(0.485, 0.456, 0.406)):
         super().__init__(distortion_scale=distortion_scale, p=p, fill=fill)
 
+@augmentations_registry.add_to_registry(name='crop')
+class RandomCrop(nn.Module):
+    def __init__(self, img_size=40, scale=(0.75, 1.0), probability=0.5):
+        self.transform = transforms.RandomChoice([
+        transforms.RandomResizedCrop(img_size, scale=(0.64, 1.0), ratio=(1.0, 1.0)),
+        transforms.ToTensor()
+    ])
+
+    def forward(self, img):
+        return self.transform(img)
+
 @augmentations_registry.add_to_registry(name='affine')
 class Affine(transforms.RandomAffine):
     def __init__(self, degrees=30, translate=(0.1,0.1),

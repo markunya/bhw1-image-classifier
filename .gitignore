@@ -1,9 +1,14 @@
 venv
 wandb
 checkpoints
+test
+train
 
 */__pycache__/
-*.pyc
+*.out
+
+bhw1/
+*.sbatch
 
 labels_test.csv
 augs_visualization.ipynb
