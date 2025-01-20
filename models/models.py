@@ -103,11 +103,11 @@ class ResNet0(nn.Module):
         reduced_size = img_size
         current_channels = start_channels
         total_blocks = sum(num_blocks)
-        current_block_index = 0
+        current_block_index = 1
         def getpdrop():
             nonlocal current_block_index
             nonlocal total_blocks
-            p_drop = p_drop_max * (total_blocks - current_block_index) / total_blocks
+            p_drop = 1 - current_block_index * (1 - p_drop_max) / total_blocks
             current_block_index += 1
             return p_drop
         
