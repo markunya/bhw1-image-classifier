@@ -3,7 +3,7 @@
         "project_name": "dl_bhw_1",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": true
+        "use_wandb": false
     },
     "data": {
         "trainval_dataset": "simple_trainval_dataset",
@@ -22,8 +22,8 @@
     "train": {
         "classifier": "resnet",
         "classifier_args": {
-            "num_blocks": [2, 2, 2, 2],
-            "start_channels": 128
+            "num_blocks": [1, 1, 1],
+            "shakedrop": true
         },
         "optimizer": "adamW",
         "optimizer_args": {
