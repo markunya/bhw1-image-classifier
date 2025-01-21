@@ -19,21 +19,20 @@ class ShakeDropFunction(torch.autograd.Function):
             ctx.save_for_backward(None)
             return x * (1 - p_drop)
 
-        gate = torch.bernoulli(torch.tensor(1 - p_drop, device=x.device)).item()
+        gate = torch.bernoulli(torch.tensor(1 - p_drop, device=x.device))
+        ctx.save_for_backward(gate)
 
-        if gate == 0:
+        if gate.item() == 0:
             alpha = torch.empty(x.size(0), 1, 1, 1, device=x.device).uniform_(*alpha_range)
             alpha = alpha.expand_as(x)
-            ctx.save_for_backward(torch.tensor(0), alpha)
             return alpha * x
         else:
-            ctx.save_for_backward(torch.tensor(1))
             return x
 
     @staticmethod
     def backward(ctx, grad_output):
-        gate, _ = ctx.saved_tensors
-        if gate.item() == 0:
+        gate = ctx.saved_tensors[0]
+        if gate is not None and gate.item() == 0:
             beta = torch.empty(grad_output.size(0), 1, 1, 1, device=grad_output.device).uniform_(0, 1)
             beta = beta.expand_as(grad_output)
             return beta * grad_output, None, None, None
@@ -55,14 +54,19 @@ class BaseResnetBlock(nn.Module):
         super().__init__()
         self.block = block
         self.shortcut = shortcut
-        self.relu = nn.ReLU()
+        self.relu = nn.ReLU() if not shakedrop else None
         self.shakedrop = ShakeDrop(p_drop=p_drop) if shakedrop else None
 
     def forward(self, x):
-        residual = self.block(x) + self.shortcut(x)
+        branch = self.block(x)
         if self.shakedrop:
-            residual = self.shakedrop(residual)
-        return self.relu(residual)
+            branch = self.shakedrop(branch)
+
+        out = branch + self.shortcut(x)
+        if self.shakedrop is None:
+            out = self.relu(out)
+
+        return out
 
 class ResnetBlock(BaseResnetBlock):
     def __init__(self, channels, downsample=False, shakedrop=False, p_drop=0.5):
@@ -80,7 +84,9 @@ class ResnetBlock(BaseResnetBlock):
                 nn.Conv2d(channels, channels*expansion, kernel_size=3, stride=stride, padding=1),
                 nn.BatchNorm2d(channels*expansion),
             ),
-            shortcut=nn.Conv2d(channels, channels*expansion, kernel_size=1, stride=stride)
+            shortcut=nn.Conv2d(channels, channels*expansion, kernel_size=1, stride=stride),
+            shakedrop=shakedrop,
+            p_drop=p_drop
         )
         
 

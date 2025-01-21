@@ -6,8 +6,8 @@ from utils.data_utils import read_json_file
 if __name__ == "__main__":
     config = read_json_file('config.json')
     setup_seed(config['exp']['seed'])
-    config['exp']['use_wandb'] = False
-    config['exp']['run_name'] = 'inference'
+    if 'run_name' not in config['exp']:
+        config['exp']['run_name'] = 'inference'
     config['data']['val_size'] = 0.0
 
     trainer = Trainer(config)

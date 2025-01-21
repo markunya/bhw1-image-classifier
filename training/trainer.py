@@ -157,8 +157,9 @@ class Trainer:
                 self.scheduler.step(val_metrics_dict['val_' + self.config['train']['scheduler_metric']])
             else:
                 self.scheduler.step()
-
-            self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
+                
+            if val_metrics_dict is not None:
+                self.logger.log_val_metrics(val_metrics_dict, epoch=self.epoch)
 
             if self.epoch % checkpoint_epoch == 0:
                 self.save_checkpoint()
@@ -188,7 +189,7 @@ class Trainer:
     @torch.no_grad()
     def validate(self):
         if len(self.val_dataset) == 0:
-            return
+            return None
         
         self.to_eval()
         metrics_dict = {}
