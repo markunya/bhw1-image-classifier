@@ -3,7 +3,7 @@
         "project_name": "dl_bhw_1",
         "device": "cuda",
         "seed": 42,
-        "use_wandb": false
+        "use_wandb": true
     },
     "data": {
         "trainval_dataset": "simple_trainval_dataset",
@@ -22,8 +22,9 @@
     "train": {
         "classifier": "resnet",
         "classifier_args": {
-            "num_blocks": [1, 1, 1],
-            "shakedrop": true
+            "num_blocks": [2, 2, 2, 2],
+            "shakedrop": true,
+            "p_drop_max": 0.5
         },
         "optimizer": "adamW",
         "optimizer_args": {
@@ -38,8 +39,8 @@
         "val_metrics": [
             "accuracy"
         ],
-        "epochs": 40,
-        "checkpoint_epoch": 20,
+        "epochs": 37,
+        "checkpoint_epoch": 37,
         "checkpoints_dir": "./checkpoints"
     },
     "augmentations": {
@@ -48,6 +49,6 @@
     },
     "mixes": ["cutmix"],
     "losses": {
-        "CrossEntropyLoss": 1.0
+        "cross_entropy_loss": 1.0
     }
 }

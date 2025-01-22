@@ -29,17 +29,7 @@ class LossBuilder:
 
         return loss_dict
 
-@losses_registry.add_to_registry(name='CrossEntropyLoss')
+@losses_registry.add_to_registry(name='cross_entropy_loss')
 class CrossEntropyLoss(nn.CrossEntropyLoss):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-@losses_registry.add_to_registry(name='MSELoss')
-class MSELoss(nn.MSELoss):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    def forward(self, input, target):
-        probs = F.softmax(input, dim=-1)
-        one_hot = F.one_hot(target, num_classes=probs.size(-1)).float()
-        return super().forward(probs, one_hot)

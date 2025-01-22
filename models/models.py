@@ -63,28 +63,27 @@ class BaseResnetBlock(nn.Module):
             branch = self.shakedrop(branch)
 
         out = branch + self.shortcut(x)
-        if self.shakedrop is None:
+        if self.relu is not None:
             out = self.relu(out)
 
         return out
 
 class ResnetBlock(BaseResnetBlock):
     def __init__(self, channels, downsample=False, shakedrop=False, p_drop=0.5):
-        stride = 1
-        expansion = 1
-        if downsample:
-            stride = 2
-            expansion = 2
+        stride_exp = 2 if downsample else 1
         BaseResnetBlock.__init__(
             self,
-            block = nn.Sequential(
-                nn.Conv2d(channels, channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(channels),
+            block=nn.Sequential(
+                nn.Conv2d(channels, channels * stride_exp, kernel_size=3, stride=stride_exp, padding=1),
+                nn.BatchNorm2d(channels * stride_exp),
                 nn.ReLU(),
-                nn.Conv2d(channels, channels*expansion, kernel_size=3, stride=stride, padding=1),
-                nn.BatchNorm2d(channels*expansion),
+                nn.Conv2d(channels * stride_exp, channels * stride_exp, kernel_size=3, padding=1),
+                nn.BatchNorm2d(channels * stride_exp),
             ),
-            shortcut=nn.Conv2d(channels, channels*expansion, kernel_size=1, stride=stride),
+            shortcut=nn.Sequential(
+                nn.Conv2d(channels, channels*2, kernel_size=1, stride=2),
+                nn.BatchNorm2d(channels*2)
+            ) if downsample else nn.Conv2d(channels, channels, kernel_size=1),
             shakedrop=shakedrop,
             p_drop=p_drop
         )
@@ -118,19 +117,17 @@ class ResNet0(nn.Module):
             return p_drop
         
         for i in range(len(num_blocks)):
-            block_of_blocks = [None] * num_blocks[i]
-            for j in range(num_blocks[i] - 1):
-                block_of_blocks[j] = ResnetBlock(current_channels, shakedrop=shakedrop, p_drop=getpdrop())
-            block_of_blocks[-1] = ResnetBlock(current_channels, downsample=True, shakedrop=shakedrop, p_drop=getpdrop())
-            blocks += block_of_blocks
-            current_channels *= 2
-            reduced_size = (reduced_size + 1) // 2
+            blocks.append(ResnetBlock(current_channels, downsample=(i!=0), shakedrop=shakedrop, p_drop=getpdrop()))
+            factor = 2 if (i!=0) else 1
+            current_channels *= factor
+            reduced_size = (reduced_size + 1) // factor
+            for _ in range(num_blocks[i]-1):
+                blocks.append(ResnetBlock(current_channels, shakedrop=shakedrop, p_drop=getpdrop()))
 
         blocks += [
-            nn.Conv2d(current_channels, current_channels*reduced_size, kernel_size=2, padding=1),
             nn.AvgPool2d(kernel_size=reduced_size),
             nn.Flatten(),
-            nn.Linear(current_channels * reduced_size, num_classes)
+            nn.Linear(current_channels, num_classes)
         ]
 
         self.model = nn.Sequential(*blocks)

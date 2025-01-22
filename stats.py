@@ -7,7 +7,7 @@ from training.trainer import Trainer
 from utils.data_utils import read_json_file
 
 
-def generate_stats(dataset, classifier, output_csv_path='stats.csv'):
+def generate_stats(dataloader, classifier, output_csv_path='stats.csv'):
     classifier.eval()
 
     label_counts = Counter()  
@@ -15,9 +15,9 @@ def generate_stats(dataset, classifier, output_csv_path='stats.csv'):
     confusion_matrix = defaultdict(Counter)
 
     with torch.no_grad():
-        for i, (inputs, labels) in enumerate(tqdm(dataset, desc="Processing dataset")):
-            inputs = inputs.to('cuda' if torch.cuda.is_available() else 'cpu')
-            labels = labels.to('cuda' if torch.cuda.is_available() else 'cpu')
+        for i, batch in enumerate(tqdm(dataloader, desc="Processing dataset")):
+            inputs = batch['images'].to('cuda')
+            labels = batch['labels'].to('cuda')
 
             outputs = classifier(inputs)
             predictions = torch.argmax(outputs, dim=1)
@@ -72,9 +72,10 @@ if __name__ == "__main__":
 
     trainer.setup_classifier()
     trainer.setup_trainval_datasets()
+    trainer.setup_val_dataloader()
 
-    dataset = trainer.val_dataset
+    dataloader = trainer.val_dataloader
     classifier = trainer.classifier
 
-    generate_stats(dataset, classifier)
+    generate_stats(dataloader, classifier)
     
