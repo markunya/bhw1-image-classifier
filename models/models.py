@@ -83,7 +83,7 @@ class ResnetBlock(BaseResnetBlock):
             shortcut=nn.Sequential(
                 nn.Conv2d(channels, channels*2, kernel_size=1, stride=2),
                 nn.BatchNorm2d(channels*2)
-            ) if downsample else nn.Conv2d(channels, channels, kernel_size=1),
+            ) if downsample else nn.Identity(),
             shakedrop=shakedrop,
             p_drop=p_drop
         )
@@ -105,7 +105,6 @@ class ResNet0(nn.Module):
                 nn.ReLU(),
         ]
 
-        reduced_size = img_size
         current_channels = start_channels
         total_blocks = sum(num_blocks)
         current_block_index = 1
@@ -117,15 +116,15 @@ class ResNet0(nn.Module):
             return p_drop
         
         for i in range(len(num_blocks)):
-            blocks.append(ResnetBlock(current_channels, downsample=(i!=0), shakedrop=shakedrop, p_drop=getpdrop()))
-            factor = 2 if (i!=0) else 1
-            current_channels *= factor
-            reduced_size = (reduced_size + 1) // factor
-            for _ in range(num_blocks[i]-1):
+            downsample = (i != 0)
+            blocks.append(ResnetBlock(current_channels, downsample=downsample, shakedrop=shakedrop, p_drop=getpdrop()))
+            if downsample:
+                current_channels *= 2
+            for _ in range(num_blocks[i] - 1):
                 blocks.append(ResnetBlock(current_channels, shakedrop=shakedrop, p_drop=getpdrop()))
 
         blocks += [
-            nn.AvgPool2d(kernel_size=reduced_size),
+            nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Linear(current_channels, num_classes)
         ]
