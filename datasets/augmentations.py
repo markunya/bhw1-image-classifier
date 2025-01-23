@@ -23,21 +23,15 @@ class Hue(transforms.ColorJitter):
     def __init__(self, hue=0.2):
         super().__init__(hue=hue)
 
+@augmentations_registry.add_to_registry(name='crop')
+class Crop(transforms.RandomResizedCrop):
+    def __init__(self, size=40, scale=(0.5, 1.0), ratio=(0.8,1.2)):
+        super().__init__(size=size, scale=scale, ratio=ratio)
+
 @augmentations_registry.add_to_registry(name='perspective')
 class Perspective(transforms.RandomPerspective):
     def __init__(self, distortion_scale=0.15, p=0.5, fill=(0.485, 0.456, 0.406)):
         super().__init__(distortion_scale=distortion_scale, p=p, fill=fill)
-
-@augmentations_registry.add_to_registry(name='crop')
-class RandomCrop(nn.Module):
-    def __init__(self, img_size=40, scale=(0.75, 1.0), probability=0.5):
-        self.transform = transforms.RandomChoice([
-        transforms.RandomResizedCrop(img_size, scale=(0.64, 1.0), ratio=(1.0, 1.0)),
-        transforms.ToTensor()
-    ])
-
-    def forward(self, img):
-        return self.transform(img)
 
 @augmentations_registry.add_to_registry(name='affine')
 class Affine(transforms.RandomAffine):
