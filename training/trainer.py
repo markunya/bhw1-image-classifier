@@ -138,7 +138,8 @@ class Trainer:
 
             with tqdm(self.train_dataloader, desc=f"Training Epoch {self.epoch}\{num_epochs}", unit="batch") as pbar:
                 for batch in pbar:
-                    batch = transforms.RandomChoice(mixes)(batch)
+                    if len(mixes) > 0:
+                        batch = transforms.RandomChoice(mixes)(batch)
                     
                     losses_dict = self.train_step(batch)
                     
@@ -228,20 +229,28 @@ class Trainer:
 
 
     @torch.no_grad()
-    def inference(self):
+    def inference(self, num_tta=10):
         self.to_eval()
+        logits_dict = {}
+
+        for _ in range(num_tta):
+            for batch in self.test_dataloader:
+                images = batch['images'].to(self.device)
+                filenames = batch['filenames']
+
+                pred_logits = self.classifier(images).cpu()
+
+                for filename, logits in zip(filenames, pred_logits):
+                    if filename not in logits_dict:
+                        logits_dict[filename] = torch.zeros_like(logits)
+                    logits_dict[filename] += logits / num_tta
 
         results = []
-
-        for batch in self.test_dataloader:
-            images = batch['images'].to(self.device)
-            filenames = batch['filenames']
-            pred_logits = self.classifier(images)
-            predicted_labels = pred_logits.argmax(dim=-1).cpu().tolist()
-
-            results.extend(zip(filenames, predicted_labels))
+        for filename, avg_logits in logits_dict.items():
+            predicted_label = avg_logits.argmax().item()
+            results.append((filename, predicted_label))
 
         df = pd.DataFrame(results, columns=["Id", "Category"])
-
         output_file = "labels_test.csv"
         df.to_csv(output_file, index=False)
+

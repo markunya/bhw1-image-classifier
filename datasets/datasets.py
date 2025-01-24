@@ -67,18 +67,17 @@ class TrainValDataset(Dataset, AugmentationsBuilder):
 @datasets_registry.add_to_registry(name='simple_test_dataset')
 class TestDataset(Dataset):
     def __init__(self, config):
+        augs_list = [augmentations_registry[key]()
+                    for key, value in config['augmentations'].items() if value is None]
+        self.augs = transforms.Compose(augs_list+ts_tail)
+        
         self.test_dir = os.path.join(config['data']['dataset_dir'], 'test')
         self.images = get_images_from_dir(self.test_dir)
-        self.transforms = transforms.Compose(ts_tail)
         
     def __getitem__(self, ind):
-
         path = os.path.join(self.test_dir,  self.images[ind])
         image = read_image(path).float() / 255.0
-
-        if self.transforms:
-            image = self.transforms(image)
-
+        image = self.augs(image)
         return {'images': image, 'filenames': self.images[ind]}
 
     def __len__(self):

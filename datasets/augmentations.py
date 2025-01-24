@@ -25,7 +25,7 @@ class Hue(transforms.ColorJitter):
 
 @augmentations_registry.add_to_registry(name='crop')
 class Crop(transforms.RandomResizedCrop):
-    def __init__(self, size=40, scale=(0.5, 1.0), ratio=(0.8,1.2)):
+    def __init__(self, size=40, scale=(0.64, 1.0), ratio=(0.9,1.1)):
         super().__init__(size=size, scale=scale, ratio=ratio)
 
 @augmentations_registry.add_to_registry(name='perspective')

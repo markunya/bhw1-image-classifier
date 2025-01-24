@@ -8,7 +8,6 @@ if __name__ == "__main__":
     setup_seed(config['exp']['seed'])
     if 'run_name' not in config['exp']:
         config['exp']['run_name'] = 'inference'
-    config['data']['val_size'] = 0.0
 
     trainer = Trainer(config)
 
