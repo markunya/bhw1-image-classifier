@@ -120,8 +120,6 @@ class Trainer:
         self.setup_val_dataloader()
 
     def training_loop(self):
-        self.to_train()
-
         num_epochs = self.config['train']['epochs']
         checkpoint_epoch = self.config['train']['checkpoint_epoch']
 
@@ -136,6 +134,7 @@ class Trainer:
             for mix in self.config['mixes']:
                 mixes.append(mixes_registry[mix]())
 
+            self.to_train()
             with tqdm(self.train_dataloader, desc=f"Training Epoch {self.epoch}\{num_epochs}", unit="batch") as pbar:
                 for batch in pbar:
                     if len(mixes) > 0:
